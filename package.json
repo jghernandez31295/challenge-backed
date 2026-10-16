@@ -1,0 +1,16 @@
+{
+  "name": "challenge-backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test",
+    "start": "node --env-file=.env services"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "Event Management System API built with Node.js and Fastify",
+  "dependencies": {
+    "fastify": "^4.28.0",
+    "msw": "^2.7.3"
+  }
+}
