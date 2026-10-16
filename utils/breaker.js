@@ -21,6 +21,7 @@ const callWithBreaker = async (fn) => {
   if (state === 'HALF_OPEN' || (state === 'OPEN' && waited < cooldown)) {
     const err = new Error('Event service unavailable');
     err.retryAfter = Math.max(1, Math.ceil((cooldown - waited) / 1000));
+    logger.debug(`Breaker ${state}, request rejected`, { retryAfter: err.retryAfter });
     throw err;
   }
   if (state === 'OPEN') {
@@ -40,11 +41,17 @@ const callWithBreaker = async (fn) => {
   } catch (err) {
     if (state === 'HALF_OPEN') {
       cooldown = Math.min(cooldown * 2, MAX_COOLDOWN_MS);
+      logger.warn('Breaker probe failed, backing off', { cooldown, error: err.message });
       open();
     } else if (state === 'CLOSED') {
       const now = Date.now();
       failures = failures.filter((time) => now - time < WINDOW_MS);
       failures.push(now);
+      logger.warn('Breaker failure recorded', {
+        failures: failures.length,
+        threshold: FAILURE_THRESHOLD,
+        error: err.message
+      });
       if (failures.length >= FAILURE_THRESHOLD) open();
     }
     throw err;
