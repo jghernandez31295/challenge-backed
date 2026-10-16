@@ -52,7 +52,9 @@ const callWithBreaker = async (fn) => {
         threshold: FAILURE_THRESHOLD,
         error: err.message
       });
-      if (failures.length >= FAILURE_THRESHOLD) open();
+      if (failures.length >= FAILURE_THRESHOLD) {
+        open();
+      }
     }
     throw err;
   }

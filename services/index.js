@@ -11,7 +11,9 @@ if (!EVENT_BASE_URL) {
 }
 fastify.get('/getUsers', async (request, reply) => {
   const resp = await fetch(`${EVENT_BASE_URL}/getUsers`);
-  if (!resp.ok) throw new Error(`Event service responded ${resp.status}`);
+  if (!resp.ok) {
+    throw new Error(`Event service responded ${resp.status}`);
+  }
   const data = await resp.json();
   logger.info('getUsers: users fetched', { count: data.length });
   reply.send(data);
@@ -45,7 +47,9 @@ fastify.post('/addEvent', { schema: addEventSchema }, async (request, reply) => 
         body
       });
 
-      if (resp.status >= 500) throw new Error(`Event service responded ${resp.status}`);
+      if (resp.status >= 500) {
+        throw new Error(`Event service responded ${resp.status}`);
+      }
       return resp;
     });
   } catch (err) {
@@ -60,13 +64,17 @@ fastify.post('/addEvent', { schema: addEventSchema }, async (request, reply) => 
     logger.info('addEvent: user not found', { userId });
     return reply.code(404).send({ error: 'User not found' });
   }
-  if (!resp.ok) throw new Error(`Event service responded ${resp.status}`);
+  if (!resp.ok) {
+    throw new Error(`Event service responded ${resp.status}`);
+  }
   logger.info('addEvent: event created', { userId });
   return resp.json();
 });
 fastify.get('/getEvents', async (request, reply) => {
   const resp = await fetch(`${EVENT_BASE_URL}/getEvents`);
-  if (!resp.ok) throw new Error(`Event service responded ${resp.status}`);
+  if (!resp.ok) {
+    throw new Error(`Event service responded ${resp.status}`);
+  }
   const data = await resp.json();
   logger.info('getEvents: events fetched', { count: data.length });
   reply.send(data);
@@ -92,7 +100,9 @@ fastify.get('/getEventsByUserId/:id', async (request, reply) => {
   try {
     await Promise.all(userEvents.map(async (eventId) => {
       const event = await fetch(`${EVENT_BASE_URL}/getEventById/${eventId}`);
-      if (!event.ok) throw new Error(`Event service responded ${event.status}`);
+      if (!event.ok) {
+        throw new Error(`Event service responded ${event.status}`);
+      }
       const eventData = await event.json();
       eventArray.push(eventData);
     }));
