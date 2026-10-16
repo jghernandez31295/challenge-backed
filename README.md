@@ -15,5 +15,4 @@
 - No `resp.ok` check on GET routes; upstream error bodies are forwarded as success.
 - `/getEventsByUserId`: unknown user id throws outside the `try` and returns an unhandled 500.
 - Port is hardcoded to `3000`; no `PORT`.
-- Two loggers in use: Fastify's pino and the console-based `utils/logger.js`.
 - base URL was hardCoded is ok for a coding exercise but not in real live that why i added EVENT_BASE_URL
