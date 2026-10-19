@@ -2,14 +2,9 @@ const fastify = require('fastify')({ logger: true });
 const listenMock = require('../mock-server');
 const { callWithBreaker } = require('../utils/breaker');
 const { logger } = require('../utils/logger');
-const EVENT_BASE_URL = process.env.EVENT_BASE_URL;
+const EVENT_BASE_URL = process.env.EVENT_BASE_URL || 'http://event.com';
 const PORT = process.env.PORT || 3000;
 const TIMEOUT_MS = 5000;
-
-if (!EVENT_BASE_URL) {
-  logger.error('EVENT_BASE_URL is not set');
-  process.exit(1);
-}
 
 const fetchJson = async (path) => {
   const resp = await fetch(`${EVENT_BASE_URL}${path}`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
