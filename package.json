@@ -1,7 +1,10 @@
 {
   "name": "challenge-backend",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "services/index.js",
+  "engines": {
+    "node": ">=20.11"
+  },
   "scripts": {
     "test": "node --test",
     "start": "node --env-file=.env services"

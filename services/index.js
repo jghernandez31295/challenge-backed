@@ -4,19 +4,27 @@ const { callWithBreaker } = require('../utils/breaker');
 const { logger } = require('../utils/logger');
 const EVENT_BASE_URL = process.env.EVENT_BASE_URL;
 const PORT = process.env.PORT || 3000;
+const TIMEOUT_MS = 5000;
 
 if (!EVENT_BASE_URL) {
   logger.error('EVENT_BASE_URL is not set');
   process.exit(1);
 }
-fastify.get('/getUsers', async (request, reply) => {
-  const resp = await fetch(`${EVENT_BASE_URL}/getUsers`);
+
+const fetchJson = async (path) => {
+  const resp = await fetch(`${EVENT_BASE_URL}${path}`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
   if (!resp.ok) {
     throw new Error(`Event service responded ${resp.status}`);
   }
-  const data = await resp.json();
-  logger.info('getUsers: users fetched', { count: data.length });
-  reply.send(data);
+  // getUserById answers 200 with an empty body when the user doesn't exist
+  const text = await resp.text();
+  return text ? JSON.parse(text) : null;
+};
+
+fastify.get('/getUsers', async () => {
+  const users = await fetchJson('/getUsers');
+  logger.info('getUsers: users fetched', { count: users.length });
+  return users;
 });
 
 const addEventSchema = {
@@ -33,6 +41,15 @@ const addEventSchema = {
 };
 
 fastify.post('/addEvent', { schema: addEventSchema }, async (request, reply) => {
+  const { userId } = request.body;
+
+  // check the user first, otherwise a typo in userId counts as an outage in the breaker
+  const user = await fetchJson(`/getUserById/${userId}`);
+  if (!user) {
+    logger.info('addEvent: user not found', { userId });
+    return reply.code(404).send({ error: 'User not found' });
+  }
+
   const body = JSON.stringify({
     id: new Date().getTime(),
     ...request.body
@@ -43,7 +60,7 @@ fastify.post('/addEvent', { schema: addEventSchema }, async (request, reply) => 
       const resp = await fetch(`${EVENT_BASE_URL}/addEvent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
         body
       });
 
@@ -59,66 +76,44 @@ fastify.post('/addEvent', { schema: addEventSchema }, async (request, reply) => 
     }
     return reply.code(503).send({ error: 'Event service unavailable, try again later' });
   }
-  const { userId } = request.body;
-  if (resp.status === 404) {
-    logger.info('addEvent: user not found', { userId });
-    return reply.code(404).send({ error: 'User not found' });
-  }
   if (!resp.ok) {
     throw new Error(`Event service responded ${resp.status}`);
   }
   logger.info('addEvent: event created', { userId });
   return resp.json();
 });
-fastify.get('/getEvents', async (request, reply) => {
-  const resp = await fetch(`${EVENT_BASE_URL}/getEvents`);
-  if (!resp.ok) {
-    throw new Error(`Event service responded ${resp.status}`);
-  }
-  const data = await resp.json();
-  logger.info('getEvents: events fetched', { count: data.length });
-  reply.send(data);
+
+fastify.get('/getEvents', async () => {
+  const events = await fetchJson('/getEvents');
+  logger.info('getEvents: events fetched', { count: events.length });
+  return events;
 });
 
 fastify.get('/getEventsByUserId/:id', async (request, reply) => {
   const { id } = request.params;
 
-  const user = await fetch(`${EVENT_BASE_URL}/getUserById/${id}`).then((res) => res.json()).catch((err) => {
-    reply.code(404).send({ error: 'User not found' });
-  });
-  const userEvents = user.events;
-  let eventArray = [];
-
-  // for (let i = 0; i < userEvents.length; i++) {
-  //   const event = await fetch('http://event.com/getEventById/' + userEvents[i]);
-  //   const eventData = await event.json();
-  //   eventArray.push(eventData);
-  // }
-  // reply.send(eventArray);
-
-  //  this is slow better to use Promise.all to fetch all events in parallel
   try {
-    await Promise.all(userEvents.map(async (eventId) => {
-      const event = await fetch(`${EVENT_BASE_URL}/getEventById/${eventId}`);
-      if (!event.ok) {
-        throw new Error(`Event service responded ${event.status}`);
-      }
-      const eventData = await event.json();
-      eventArray.push(eventData);
-    }));
-    logger.info('getEventsByUserId: events fetched', { userId: id, count: eventArray.length });
-    reply.send(eventArray);
-  } catch (error) {
+    const user = await fetchJson(`/getUserById/${id}`);
+    if (!user) {
+      return reply.code(404).send({ error: 'User not found' });
+    }
 
-    reply.code(500).send({ error: `Error fetching events for user ${id}` });
+    // getEventById takes ~500ms, so fetching one by one was N x 500ms
+    const events = await Promise.all(
+      user.events.map((eventId) => fetchJson(`/getEventById/${eventId}`))
+    );
+    logger.info('getEventsByUserId: events fetched', { userId: id, count: events.length });
+    return events;
+  } catch (err) {
+    logger.error(`getEventsByUserId: failed for user ${id}`, err);
+    return reply.code(502).send({ error: `Failed to fetch events for user ${id}` });
   }
-
 });
 
 fastify.listen({ port: PORT }, (err) => {
-  listenMock();
   if (err) {
     logger.error('Server failed to start', err);
-    process.exit();
+    process.exit(1);
   }
+  listenMock();
 });

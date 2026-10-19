@@ -93,18 +93,10 @@ const server = setupServer(
   }),
   
   http.post('http://event.com/addEvent', async ({request}) => {
-    const requestBody = await request.json()
-    if (!userStore.getUser(requestBody.userId)) {
-      return HttpResponse.json({
-        success: false,
-        error: 'User not found'
-      },{
-        status: 404,
-      })
-    }
     requestCount++
     // Simulate a successful response for the first 5 requests
     if (requestCount <= 5 || requestCount == 0) {
+      const requestBody = await request.json()
       eventStore.addEvent(requestBody);
       userStore.addEventTouUser(requestBody.userId, requestBody.id)
       return HttpResponse.json({
